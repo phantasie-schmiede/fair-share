@@ -110,6 +110,11 @@ has paid so far and how balanced the group currently is.
   the stored data first: when it finds a newer version than the
   working copy, it asks whether to overwrite (your changes win) or
   to load the saved version – a silent overwrite never happens.
+- **Saving to the file failed:** if the linked file cannot be
+  written (e.g. it is read-only or storage is full), the app
+  shows a banner: your changes keep being saved reliably in the
+  browser, but the file contains an older copy. The banner stays
+  visible until writing to the file succeeds again.
 
 All data stays on the device. No internet connection, no cloud, no
 forwarding.
@@ -137,10 +142,18 @@ forwarding.
   a wrong passphrase, "Cancel" returns to the app. The file's
   passphrase is only used to read the file: it does not enable or
   change the app's own encryption.
-- Note: "Export data (JSON)" and "Share data" always export the
-  plain (unencrypted) data – the export is the backup of record.
-  While encryption is active, the data card shows a short
-  reminder of this next to the encryption controls.
+- **Encrypted export:** while encryption is active, "Export data
+  (JSON)" and "Share data" produce an encrypted envelope (the same
+  format as the regular safety copies) instead of plain text – the
+  import detects it automatically and asks for the file's
+  passphrase. Without encryption both keep exporting plain JSON.
+- **What the passphrase protects:** the encryption protects the
+  *stored* data – for example a stolen data file or a lost USB
+  stick. A running, unlocked browser tab can of course still see
+  the data; a compromised device is not protected by it. Outside
+  the encrypted area only the revision number `rev` stays
+  visible: it serves the conflict detection (see "Several tabs /
+  browsers") and reveals nothing about the content.
 
 ## Audit log and data retention
 

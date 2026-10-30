@@ -80,6 +80,43 @@
   }
 
   /**
+   * True when the value is a valid calendar date in "YYYY-MM-DD" format.
+   * Rejects anything else, including impossible days such as
+   * "2026-02-31".
+   *
+   * @param {*} text
+   * @returns {boolean}
+   */
+  function isIsoDate(text) {
+    if ('string' !== typeof text || !/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+      return false;
+    }
+
+    const parts = text.split('-').map(Number);
+    const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+
+    return (
+      parts[0] === date.getUTCFullYear() &&
+      parts[1] === date.getUTCMonth() + 1 &&
+      parts[2] === date.getUTCDate()
+    );
+  }
+
+  /**
+   * Format a Date object as "YYYY-MM-DD" in the LOCAL time zone (the
+   * calendar day the user actually sees on the clock).
+   *
+   * @param {Date} date
+   * @returns {string}
+   */
+  function localIsoDate(date) {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+
+    return date.getFullYear() + '-' + month + '-' + day;
+  }
+
+  /**
    * Parse an ISO date string "YYYY-MM-DD" into a Date.
    *
    * Parsed as UTC so that subtracting two such dates always yields whole
@@ -117,12 +154,12 @@
   }
 
   /**
-   * Today's date as "YYYY-MM-DD" in UTC.
+   * Today's date as "YYYY-MM-DD" in the local time zone.
    *
    * @returns {string}
    */
   function todayIso() {
-    return formatIsoDate(new Date());
+    return localIsoDate(new Date());
   }
 
   const api = {
@@ -130,6 +167,8 @@
     escapeHtml: escapeHtml,
     formatIsoDate: formatIsoDate,
     generateId: generateId,
+    isIsoDate: isIsoDate,
+    localIsoDate: localIsoDate,
     parseIsoDate: parseIsoDate,
     priceForQuantity: priceForQuantity,
     todayIso: todayIso,

@@ -119,6 +119,12 @@ Gruppe aktuell ist.
   überschrieben werden soll (eure Änderungen gewinnen) oder die
   gespeicherte Version geladen werden soll – eine stille
   Überschreibung gibt es nicht.
+- **Speichern in das File fehlgeschlagen:** Kann das verknüpfte
+  File nicht geschrieben werden (z. B. schreibgeschützt oder
+  Speicher voll), zeigt die App ein Banner: Die Änderungen werden
+  weiterhin zuverlässig im Browser gespeichert, das File enthält
+  aber eine ältere Kopie. Das Banner bleibt sichtbar, bis ein
+  Speichern in das File wieder klappt.
 
 Alle Daten bleiben auf dem Gerät. Keine Internetverbindung, keine
 Cloud, keine Weitergabe.
@@ -150,11 +156,20 @@ Cloud, keine Weitergabe.
   versuchen, „Abbrechen“ kehrt zur App zurück. Das Passwort der
   Datei dient nur zum Lesen: Es aktiviert oder ändert nicht die
   eigene Verschlüsselung der App.
-- Achtung: „Daten exportieren (JSON)“ und „Daten teilen“
-  exportieren immer die unverschlüsselten Daten – der Export ist
-  die offizielle Sicherung. Solange die Verschlüsselung aktiv
-  ist, erinnert eine kurze Zeile neben den
-  Verschlüsselungs-Buttons daran.
+- **Verschlüsselter Export:** Solange die Verschlüsselung aktiv
+  ist, liefern „Daten exportieren (JSON)“ und „Daten teilen“ ein
+  verschlüsseltes Envelope (dasselbe Format wie die
+  Sicherungsdateien) statt Klartext – der Import erkennt es
+  automatisch und fragt danach das Passwort der Datei ab. Ohne
+  Verschlüsselung exportieren beide weiter Klartext-JSON.
+- **Was das Passwort schützt:** Die Verschlüsselung schützt die
+  *gespeicherten* Daten – z. B. ein gestohlenes Datenfile oder ein
+  verlorener USB-Stick. Ein laufender, entsperrter Browser-Tab
+  sieht selbstverständlich weiterhin die Daten; ein
+  kompromittiertes Gerät ist damit nicht geschützt. Außerhalb des
+  verschlüsselten Bereichs bleibt nur die Revisionsnummer `rev`
+  sichtbar: Sie dient der Konflikterkennung (siehe „Mehrere Tabs /
+  Browser“) und verrät nichts über den Inhalt.
 
 ## Protokoll und Aufbewahrung
 

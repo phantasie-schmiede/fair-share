@@ -995,6 +995,83 @@ test('fromRaw prunes expired data on load', () => {
   assert.equal(retention.data.log, 1);
 });
 
+test('fromRaw replaces invalid dates with the defaults', () => {
+  const { todayIso } = require('../js/util.js');
+  const result = DataModel.fromRaw({
+    events: [{ date: 'garbage', id: 'e_bad', ingredients: [], seed: 1 }],
+    kids: [{ active: true, enrolledOn: '2026-02-31', id: 'k_bad', name: 'Lili' }],
+    metadata: { createdAt: '30.10.2026' },
+    version: 1,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.model.events[0].date, todayIso());
+  assert.equal(result.model.kids[0].enrolledOn, todayIso());
+  assert.equal(result.model.metadata.createdAt, todayIso());
+});
+
+test('fromRaw normalizes negative quantities and non-finite prices', () => {
+  const result = DataModel.fromRaw({
+    events: [
+      {
+        date: '2026-10-30',
+        id: 'e_num',
+        ingredients: [
+          { childId: '', name: 'Mehl', price: Infinity, quantity: -3, unit: 'g' },
+          { childId: '', name: 'Reis', price: -1, quantity: 2.5, unit: 'kg' },
+        ],
+        seed: Infinity,
+        title: '',
+      },
+    ],
+    priceList: [{ name: 'Zucker', price: Infinity, quantity: -1, unit: 'g' }],
+    version: 1,
+  });
+
+  assert.equal(result.ok, true);
+  const [mehl, reis] = result.model.events[0].ingredients;
+  assert.equal(mehl.price, 0);
+  assert.equal(mehl.quantity, 0);
+  assert.equal(reis.price, 0);
+  assert.equal(reis.quantity, 2.5);
+  assert.equal(result.model.events[0].seed, 0);
+  assert.equal(result.model.priceList[0].price, 0);
+  assert.equal(result.model.priceList[0].quantity, 0);
+});
+
+test('fromRaw survives adversarial input without throwing', () => {
+  const result = DataModel.fromRaw({
+    events: [
+      'not-an-object',
+      null,
+      { ingredients: 'nope', seed: NaN, title: 42 },
+      {
+        date: '2026-10-30',
+        ingredients: [42, null, 'x', { price: 'free', quantity: 'a lot' }],
+      },
+    ],
+    kids: [42, null, { name: 17, enrolledOn: ['nested'] }],
+    log: { not: 'an array' },
+    metadata: { rev: -5, updatedAt: 17 },
+    settings: { language: 'fr', maxIngredientsPerChild: 2.7 },
+    version: 1,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.model.events.length, 2);
+  assert.equal(result.model.events[0].ingredients.length, 0);
+  assert.equal(result.model.events[0].seed, 0);
+  assert.equal(result.model.events[1].ingredients.length, 1);
+  assert.equal(result.model.events[1].ingredients[0].price, 0);
+  assert.equal(result.model.events[1].ingredients[0].quantity, 0);
+  assert.equal(result.model.kids.length, 1);
+  assert.equal(result.model.kids[0].name, '(unnamed)');
+  assert.equal(result.model.metadata.rev, 0);
+  assert.equal(result.model.metadata.updatedAt, '');
+  assert.equal(result.model.settings.language, 'de');
+  assert.equal(result.model.settings.maxIngredientsPerChild, 2);
+});
+
 /* Derived statistics ----------------------------------------------------------- */
 
 test('priorTotals sums every assignment across all events', () => {

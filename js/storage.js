@@ -64,6 +64,9 @@
       this.encryptionSalt = null;
       // FileSystemFileHandle of the linked file, or null.
       this.fileHandle = null;
+      // True when the last file write failed (the browser copy is
+      // newer; cleared by the next successful file write).
+      this.fileSaveFailed = false;
       // Validate a raw JSON value on load/import.
       this.fromRaw = callbacks.fromRaw;
       // 'file' (capability available) | 'browser'.
@@ -158,6 +161,32 @@
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
       });
+    }
+
+    /**
+     * Build the payload for export and "share": when a session key is
+     * active, the state is wrapped in an encrypted envelope (the
+     * revision stays in the clear, same as in save()), otherwise the
+     * plain state is returned. The import detects envelopes
+     * automatically, so exported files always remain importable.
+     *
+     * @param {object} state
+     * @returns {Promise<object>}
+     */
+    async exportPayload(state) {
+      if (!this.encryptionKey) {
+        return state;
+      }
+
+      const payload = await cryptoStore().encrypt(
+        state,
+        this.encryptionKey,
+        this.encryptionSalt
+      );
+
+      payload.rev = state.metadata ? state.metadata.rev : 0;
+
+      return payload;
     }
 
     /**
@@ -405,12 +434,20 @@
       await this.dbSet('state', payload);
 
       if (this.fileHandle) {
-        const writable = await this.fileHandle.createWritable();
+        try {
+          const writable = await this.fileHandle.createWritable();
 
-        await writable.write(JSON.stringify(payload, null, 2));
-        await writable.close();
-        // The file was rewritten - the corruption hint can go away.
-        this.corruptedFile = false;
+          await writable.write(JSON.stringify(payload, null, 2));
+          await writable.close();
+          // The file was rewritten - the old hints can go away.
+          this.corruptedFile = false;
+          this.fileSaveFailed = false;
+        } catch (error) {
+          // The browser copy is up to date, the file is not - keep a
+          // permanent hint visible until a file write succeeds.
+          this.fileSaveFailed = true;
+          throw error;
+        }
       }
     }
 

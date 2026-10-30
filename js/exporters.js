@@ -273,9 +273,10 @@
     }
 
     /**
-     * Build the JSON export File (the complete app state).
+     * Build the JSON export File (the complete app state, plain or
+     * as an encrypted envelope).
      *
-     * @param {object} state - plain state
+     * @param {object} state - plain state or encrypted envelope
      * @returns {File}
      */
     static jsonFile(state) {
@@ -290,7 +291,7 @@
      * Share the JSON export with the OS share sheet when possible,
      * otherwise fall back to a plain download.
      *
-     * @param {object} state - plain state
+     * @param {object} state - plain state or encrypted envelope
      * @param {string} shareTitle - localized share sheet title
      * @returns {Promise<'shared' | 'downloaded' | 'cancelled'>}
      */

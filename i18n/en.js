@@ -29,9 +29,11 @@ window.I18N_EN = {
     'The data will be stored WITHOUT encryption again. Continue?',
   'crypto.deactivateOk': 'Encryption removed.',
   'crypto.exportNote':
-    'Note: "Export data" and "Share data" always produce unencrypted data.',
+    'Note: "Export data" and "Share data" then produce an encrypted file - import it again with the app.',
   'crypto.locked': 'The data is encrypted',
   'crypto.mismatch': 'The passphrases do not match.',
+  'crypto.passHint':
+    'At least 8 characters - longer is better, separated words are strong.',
   'crypto.passphrase': 'Passphrase',
   'crypto.tooShort': 'Please use a passphrase with at least 8 characters.',
   'crypto.unlockButton': 'Unlock',
@@ -216,6 +218,9 @@ window.I18N_EN = {
   'storage.banner.corruptText':
     'The linked data file could not be read. The data was loaded from the browser safety copy - the file is repaired automatically on the next save.',
   'storage.banner.corruptTitle': 'Data file corrupted',
+  'storage.banner.fileFailText':
+    'Saving to the linked data file failed - your data keeps being saved in the browser, but the file contains an older copy. Please check file permissions and free storage.',
+  'storage.banner.fileFailTitle': 'Saving to the data file failed',
   'storage.banner.reconnectButton': 'Reconnect file',
   'storage.banner.reconnectText':
     'Click to reconnect your data file and continue auto-saving.',

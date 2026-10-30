@@ -498,22 +498,33 @@
         });
       view.querySelectorAll('.hist-share').forEach(function (button) {
         button.addEventListener('click', function () {
-          Exporter.share(app.model.toJson(), i18n.t('export.share.title')).then(
-            function (result) {
+          // Encryption active: the shared file is an envelope.
+          app.storage
+            .exportPayload(app.model.toJson())
+            .then(function (payload) {
+              return Exporter.share(
+                payload,
+                i18n.t('export.share.title')
+              );
+            })
+            .then(function (result) {
               if ('shared' === result) {
                 app.showToast(i18n.t('toast.shared'));
               }
-            }
-          );
+            });
         });
       });
       view.querySelectorAll('.hist-export').forEach(function (button) {
         button.addEventListener('click', function () {
-          const state = app.model.toJson();
-          Exporter.downloadBlob(
-            Exporter.jsonFile(state),
-            'kita-data-' + Util.todayIso() + '.json'
-          );
+          // Encryption active: the exported file is an envelope.
+          app.storage
+            .exportPayload(app.model.toJson())
+            .then(function (payload) {
+              Exporter.downloadBlob(
+                Exporter.jsonFile(payload),
+                'kita-data-' + Util.todayIso() + '.json'
+              );
+            });
         });
       });
       view.querySelectorAll('.hist-import').forEach(function (button) {

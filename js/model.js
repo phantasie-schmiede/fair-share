@@ -896,10 +896,9 @@
 
     // --- metadata (all optional, keep whatever is there) ---------------
     if (raw.metadata && 'object' === typeof raw.metadata) {
-      state.metadata.createdAt =
-        'string' === typeof raw.metadata.createdAt
-          ? raw.metadata.createdAt
-          : state.metadata.createdAt;
+      state.metadata.createdAt = Util.isIsoDate(raw.metadata.createdAt)
+        ? raw.metadata.createdAt
+        : state.metadata.createdAt;
       state.metadata.kindergartenName =
         'string' === typeof raw.metadata.kindergartenName
           ? raw.metadata.kindergartenName
@@ -924,10 +923,9 @@
         .filter((kid) => 'object' === typeof kid && null !== kid)
         .map((kid) => ({
           active: false !== kid.active, // default: active
-          enrolledOn:
-            'string' === typeof kid.enrolledOn
-              ? kid.enrolledOn
-              : Util.todayIso(),
+          enrolledOn: Util.isIsoDate(kid.enrolledOn)
+            ? kid.enrolledOn
+            : Util.todayIso(),
           id:
             'string' === typeof kid.id && kid.id
               ? kid.id
@@ -948,10 +946,17 @@
             'string' === typeof item.category ? clipText(item.category) : '',
           name: 'string' === typeof item.name ? clipText(item.name) : '',
           price:
-            'number' === typeof item.price && 0 <= item.price
+            'number' === typeof item.price &&
+            Number.isFinite(item.price) &&
+            0 <= item.price
               ? item.price
               : 0,
-          quantity: 'number' === typeof item.quantity ? item.quantity : 0,
+          quantity:
+            'number' === typeof item.quantity &&
+            Number.isFinite(item.quantity) &&
+            0 <= item.quantity
+              ? item.quantity
+              : 0,
           unit: 'string' === typeof item.unit ? item.unit : '',
         }));
     }
@@ -969,7 +974,7 @@
       state.events = raw.events
         .filter((event) => 'object' === typeof event && null !== event)
         .map((event) => ({
-          date: 'string' === typeof event.date ? event.date : Util.todayIso(),
+          date: Util.isIsoDate(event.date) ? event.date : Util.todayIso(),
           id:
             'string' === typeof event.id && event.id
               ? event.id
@@ -982,15 +987,24 @@
                   manual: true === ing.manual,
                   name: 'string' === typeof ing.name ? clipText(ing.name) : '',
                   price:
-                    'number' === typeof ing.price && 0 <= ing.price
+                    'number' === typeof ing.price &&
+                    Number.isFinite(ing.price) &&
+                    0 <= ing.price
                       ? ing.price
                       : 0,
                   quantity:
-                    'number' === typeof ing.quantity ? ing.quantity : 0,
+                    'number' === typeof ing.quantity &&
+                    Number.isFinite(ing.quantity) &&
+                    0 <= ing.quantity
+                      ? ing.quantity
+                      : 0,
                   unit: 'string' === typeof ing.unit ? ing.unit : '',
                 }))
             : [],
-          seed: 'number' === typeof event.seed ? event.seed : 0,
+          seed:
+            'number' === typeof event.seed && Number.isFinite(event.seed)
+              ? event.seed
+              : 0,
           title: 'string' === typeof event.title ? clipText(event.title) : '',
         }));
     }

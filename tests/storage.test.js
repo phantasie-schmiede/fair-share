@@ -172,7 +172,7 @@ test('load creates a fresh state without a file and without a copy', async () =>
 
 /* save -------------------------------------------------------------------------- */
 
-test('save clears the corruption flag after rewriting the file', async () => {
+test('save clears the corruption and file-failure flags after rewriting the file', async () => {
   const manager = makeManager({ version: 1, kids: ['saved'] });
   manager.fileHandle = {
     createWritable: async () => ({
@@ -181,10 +181,12 @@ test('save clears the corruption flag after rewriting the file', async () => {
     }),
   };
   manager.corruptedFile = true;
+  manager.fileSaveFailed = true;
 
   await manager.save({ metadata: {}, version: 1 }, '2026-10-30T00:00:00.000Z');
 
   assert.equal(manager.corruptedFile, false);
+  assert.equal(manager.fileSaveFailed, false);
 });
 
 /* encryption -------------------------------------------------------------------- */
@@ -300,4 +302,62 @@ test('tryDecrypt resolves a foreign envelope without touching session state', as
   assert.equal(manager.encryptionActive, false);
   assert.equal(manager.needsUnlock, false);
   assert.equal(manager.wrongPassphrase, false);
+});
+
+/* exportPayload ----------------------------------------------------------------- */
+
+test('exportPayload returns the plain state without a key', async () => {
+  const manager = makeManager(null);
+  const state = { metadata: { rev: 2 }, version: 1 };
+
+  const payload = await manager.exportPayload(state);
+
+  assert.equal(payload, state);
+});
+
+test('exportPayload wraps the state in an envelope with a clear revision', async () => {
+  const { CryptoStore } = require('../js/crypto.js');
+  const manager = makeManager(null);
+
+  await manager.setEncryptionKey('secret-12345');
+
+  const payload = await manager.exportPayload({
+    metadata: { rev: 7 },
+    version: 1,
+  });
+
+  assert.ok(CryptoStore.isEncryptedEnvelope(payload));
+  assert.equal(payload.rev, 7);
+
+  const decrypted = await CryptoStore.decrypt(
+    payload,
+    await CryptoStore.deriveKey('secret-12345', payload.kdf.salt)
+  );
+
+  assert.deepEqual(decrypted, { metadata: { rev: 7 }, version: 1 });
+});
+
+/* file save failure -------------------------------------------------------------- */
+
+test('save flags a failed file write, keeps the browser copy and rethrows', async () => {
+  const manager = makeManager(null);
+  const stored = {};
+
+  manager.dbSet = async (key, value) => {
+    stored[key] = value;
+  };
+  manager.fileHandle = {
+    createWritable: async () => {
+      throw new Error('read-only');
+    },
+  };
+
+  await assert.rejects(
+    manager.save({ metadata: {}, version: 1 }, '2026-10-30T00:00:00.000Z'),
+    /read-only/
+  );
+
+  assert.equal(manager.fileSaveFailed, true);
+  assert.equal(manager.corruptedFile, false);
+  assert.ok(stored.state); // the safety copy was written first
 });

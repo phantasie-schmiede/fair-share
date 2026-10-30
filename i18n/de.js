@@ -26,9 +26,11 @@ window.I18N_DE = {
     'Die Daten werden wieder ohne Verschlüsselung gespeichert. Fortsetzen?',
   'crypto.deactivateOk': 'Verschlüsselung aufgehoben.',
   'crypto.exportNote':
-    'Hinweis: „Daten exportieren“ und „Daten teilen“ liefern unverschlüsselte Daten.',
+    'Hinweis: „Daten exportieren“ und „Daten teilen“ liefern dann ein verschlüsseltes File – es lässt sich wieder mit der App importieren.',
   'crypto.locked': 'Die Daten sind verschlüsselt',
   'crypto.mismatch': 'Die Passwörter sind nicht gleich.',
+  'crypto.passHint':
+    'Mindestens 8 Zeichen – länger ist besser, getrennte Wörter sind stark.',
   'crypto.passphrase': 'Passwort',
   'crypto.tooShort': 'Bitte ein Passwort mit mindestens 8 Zeichen verwenden.',
   'crypto.unlockButton': 'Entsperren',
@@ -215,6 +217,9 @@ window.I18N_DE = {
   'storage.banner.corruptText':
     'Das verknüpfte Datenfile konnte nicht gelesen werden. Die Daten wurden aus der Browser-Sicherung geladen – beim nächsten Speichern wird das File automatisch repariert.',
   'storage.banner.corruptTitle': 'Datenfile beschädigt',
+  'storage.banner.fileFailText':
+    'Speichern in das verknüpfte Datenfile ist fehlgeschlagen – die Daten werden weiterhin im Browser gespeichert, aber das File enthält eine ältere Kopie. Bitte Berechtigungen und freien Speicher prüfen.',
+  'storage.banner.fileFailTitle': 'Speichern in das Datenfile fehlgeschlagen',
   'storage.banner.reconnectButton': 'Datei wiederherstellen',
   'storage.banner.reconnectText':
     'Klickt hier, um die Verknüpfung mit eurem Datenfile wiederherzustellen.',

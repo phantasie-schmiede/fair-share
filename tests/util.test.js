@@ -11,7 +11,12 @@
 
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
-const { addYearsIso, priceForQuantity } = require('../js/util.js');
+const {
+  addYearsIso,
+  isIsoDate,
+  localIsoDate,
+  priceForQuantity,
+} = require('../js/util.js');
 
 test('priceForQuantity scales the default price by the quantity factor', () => {
   assert.equal(priceForQuantity(1.29, 500, 1000), 2.58); // 500 g -> 1 kg
@@ -42,4 +47,26 @@ test('addYearsIso clamps a leap day to Feb 28 in non-leap years', () => {
   assert.equal(addYearsIso('2024-02-29', 1), '2025-02-28');
   assert.equal(addYearsIso('2024-02-29', 4), '2028-02-29');
   assert.equal(addYearsIso('2024-02-29', -1), '2023-02-28');
+});
+
+test('localIsoDate uses the local calendar day in every time zone', () => {
+  // Constructed in local time, so the result is the same no matter
+  // which time zone the tests run in (UTC, negative offsets, ...).
+  assert.equal(localIsoDate(new Date(2026, 9, 30)), '2026-10-30');
+  assert.equal(localIsoDate(new Date(2026, 0, 1, 23, 59)), '2026-01-01');
+  assert.equal(localIsoDate(new Date(2025, 11, 31, 23, 59)), '2025-12-31');
+});
+
+test('isIsoDate accepts real calendar dates and rejects the rest', () => {
+  assert.equal(isIsoDate('2026-10-30'), true);
+  assert.equal(isIsoDate('2024-02-29'), true); // leap day
+  assert.equal(isIsoDate('2026-02-29'), false); // not a leap year
+  assert.equal(isIsoDate('2026-02-31'), false); // impossible day
+  assert.equal(isIsoDate('2026-13-01'), false); // impossible month
+  assert.equal(isIsoDate('2026-10-3'), false); // unpadded
+  assert.equal(isIsoDate('20261030'), false); // wrong format
+  assert.equal(isIsoDate('2026-10-30T00:00:00.000Z'), false); // timestamp
+  assert.equal(isIsoDate('garbage'), false);
+  assert.equal(isIsoDate(20261030), false); // not a string
+  assert.equal(isIsoDate(null), false);
 });

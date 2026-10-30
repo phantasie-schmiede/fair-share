@@ -388,9 +388,10 @@
         <form class="mx-auto" id="unlock-form" style="max-width: 320px">
           <input
             autocomplete="current-password"
-            class="form-control mb-3"
+            class="form-control mb-1"
             id="unlock-pass"
             type="password">
+          <div class="form-text mb-3">${escapeHtml(this.i18n.t('crypto.passHint'))}</div>
           <div class="d-flex gap-2">
             <button
               class="btn btn-primary flex-grow-1"
@@ -638,6 +639,7 @@
      * Show / hide the storage banner depending on the mode:
      *   - no storage        : danger banner (in-memory only)
      *   - browser mode      : info about the missing file support
+     *   - file mode, save failed : the browser copy is newer than the file
      *   - file mode, linked : nothing
      *   - file mode, paused : "reconnect" call to action
      */
@@ -669,7 +671,14 @@
       }
 
       if (this.storage.fileHandle) {
-        if (this.storage.corruptedFile) {
+        if (this.storage.fileSaveFailed) {
+          banner.innerHTML =
+            '<strong>' +
+            escapeHtml(this.i18n.t('storage.banner.fileFailTitle')) +
+            '</strong><br>' +
+            escapeHtml(this.i18n.t('storage.banner.fileFailText'));
+          banner.classList.remove('d-none');
+        } else if (this.storage.corruptedFile) {
           banner.innerHTML =
             '<strong>' +
             escapeHtml(this.i18n.t('storage.banner.corruptTitle')) +
