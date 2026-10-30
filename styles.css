@@ -1,0 +1,69 @@
+/*
+ * styles.css - small override layer on top of Bootstrap 5.3.8
+ * ---------------------------------------------------------------------------
+ * Everything visual is plain Bootstrap; only the app-specific bits
+ * (fairness difference colors, sticky header, print rules) live here.
+ */
+
+/* Fairness difference colors (overview table). */
+.diff-under {
+  color: #146c43;
+}
+
+.diff-over {
+  color: #b02a37;
+}
+
+.diff-zero {
+  color: var(--bs-body-color);
+}
+
+/* The header stays reachable while scrolling on long pages. */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 1020;
+}
+
+/* The tab bar scrolls on narrow screens without a visible scrollbar. */
+#tab-bar {
+  scrollbar-width: none;
+}
+
+/* Print: only the current view content, nothing else. */
+@media print {
+  .app-header,
+  #tab-bar,
+  #storage-banner,
+  #btn-file-action,
+  #toast-container,
+  .hist-backup-card {
+    display: none !important;
+  }
+
+  /* Selection active: only the selected event cards are printed. */
+  body.print-selection .event-card:not(.event-card--selected) {
+    display: none !important;
+  }
+
+  /* Poster ("Aushang") print: swap the normal view for the poster. */
+  body.print-poster #view {
+    display: none;
+  }
+  body.print-poster #print-poster {
+    display: block;
+  }
+
+  .poster-section {
+    page-break-after: always;
+  }
+
+  .poster-section:last-child {
+    page-break-after: auto;
+  }
+}
+
+/* The poster container is only used for the print media. */
+#print-poster {
+  display: none;
+}

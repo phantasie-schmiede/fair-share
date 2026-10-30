@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta
+      content="width=device-width, initial-scale=1"
+      name="viewport">
+    <link
+      href="vendor/bootstrap/bootstrap.min.css"
+      rel="stylesheet">
+    <link
+      href="styles.css"
+      rel="stylesheet">
+    <title>Fair Share</title>
+  </head>
+  <body class="bg-body-tertiary">
+    <header
+      class="app-header border-bottom bg-white">
+      <div
+        class="align-items-center d-flex flex-wrap gap-2 px-3 py-2">
+        <div class="brand">
+          <h4
+            class="fw-semibold h4 mb-0"
+            id="app-title">Fair Share</h4>
+          <small
+            class="text-body-secondary"
+            id="app-tagline">Faire Zutaten-Zuteilung für die Kita</small>
+        </div>
+        <div
+          class="align-items-center d-flex gap-2 ms-auto">
+          <span
+            aria-live="polite"
+            class="badge border fw-normal rounded-pill text-bg-light"
+            id="storage-indicator"></span>
+          <button
+            class="btn btn-outline-secondary btn-sm"
+            id="btn-lang"
+            type="button">EN</button>
+        </div>
+      </div>
+    </header>
+    <main
+      class="app-main container-fluid">
+      <div class="mb-2">
+        <nav
+          class="gap-1 nav nav-pills overflow-auto pb-1"
+          id="tab-bar"
+          role="tablist">
+          <button
+            class="active nav-link"
+            data-view="overview"
+            role="tab"
+            type="button">Übersicht</button>
+          <button
+            class="nav-link"
+            data-view="plan"
+            role="tab"
+            type="button">Neues Event</button>
+          <button
+            class="nav-link"
+            data-view="kids"
+            role="tab"
+            type="button">Kinder</button>
+          <button
+            class="nav-link"
+            data-view="prices"
+            role="tab"
+            type="button">Preisliste</button>
+          <button
+            class="nav-link"
+            data-view="history"
+            role="tab"
+            type="button">Historie</button>
+          <button
+            class="nav-link"
+            data-view="log"
+            role="tab"
+            type="button">Protokoll</button>
+        </nav>
+      </div>
+      <div
+        class="alert alert-warning d-none mt-2 py-1"
+        id="storage-banner"></div>
+      <button
+        class="btn btn-outline-primary btn-sm d-none mt-1"
+        id="btn-file-action"
+        type="button"></button>
+      <div
+        class="mt-2"
+        id="view"></div>
+    </main>
+    <div id="print-poster"></div>
+    <div
+      aria-atomic="true"
+      aria-live="polite"
+      class="position-fixed bottom-0 start-50 toast-container"
+      id="toast-container"
+      style="z-index: 1100"></div>
+    <input
+      accept=".json,application/json"
+      class="d-none"
+      id="import-input"
+      type="file">
+    <datalist
+      id="ingredient-names"></datalist>
+    <script
+      src="vendor/bootstrap/bootstrap.bundle.min.js"></script>
+    <script src="js/util.js"></script>
+    <script src="js/crypto.js"></script>
+    <script src="js/defaults.js"></script>
+    <script src="i18n/de.js"></script>
+    <script src="i18n/en.js"></script>
+    <script src="js/i18n.js"></script>
+    <script src="js/model.js"></script>
+    <script src="js/fairness.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/exporters.js"></script>
+    <script src="js/views/overview.js"></script>
+    <script src="js/views/plan.js"></script>
+    <script src="js/views/kids.js"></script>
+    <script src="js/views/prices.js"></script>
+    <script src="js/views/history.js"></script>
+    <script src="js/views/log.js"></script>
+    <script src="js/app.js"></script>
+  </body>
+</html>

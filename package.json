@@ -1,0 +1,9 @@
+{
+  "name": "kita-fair-share",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Fair ingredient assignment for a German kindergarten - runs from a single index.html, no installs.",
+  "scripts": {
+    "test": "node --test"
+  }
+}
