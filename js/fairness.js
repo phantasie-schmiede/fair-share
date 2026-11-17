@@ -7,9 +7,15 @@
  *   - how the group rate and each child's fair target are computed,
  *   - the assignment algorithm itself.
  *
- * The rule in one sentence:
- *   "The family that is furthest BELOW its fair share gets the most
- *    expensive ingredient first - and so on."
+ * Two fairness axes:
+ *
+ *   1. MONEY: "The family that is furthest BELOW its fair share gets
+ *      the most expensive ingredient first - and so on."
+ *   2. FREQUENCY: a child who was already picked more than
+ *      FREQUENCY_TOLERANCE times above their time-proportional share
+ *      takes a break - even when the money difference would pick them
+ *      again. Fair COSTS alone do not mean a fair WORKLOAD, because
+ *      cheap ingredients still have to be brought in.
  *
  * Fairness is a stateless service (all methods are static): it only
  * receives data, returns results, and never mutates its input. That
@@ -48,6 +54,18 @@
     return 0;
   }
 
+  /**
+   * The frequency guard tolerance, in ASSIGNMENTS: a child who was
+   * already picked more than this many times above their
+   * time-proportional expected share (group frequency × weeks in the
+   * group) is not a candidate for the next ingredient - unless every
+   * candidate is over, in which case the guard stands down. Because
+   * the expectation scales with the enrollment date, a newcomer is
+   * judged on their OWN time in the group and never has to "catch
+   * up" to the older children.
+   */
+  const FREQUENCY_TOLERANCE = 1;
+
   class Fairness {
     /**
      * Assign the ingredients of one event to the children of the group.
@@ -58,12 +76,21 @@
      *      difference from target (totalSpent - groupRate * weeks),
      *      using running totals that already include the ingredients
      *      placed earlier in THIS event.
-     *   3. Give the ingredient to the candidate with the smallest
-     *      difference.
-     *   4. By default a child brings at most `maxPerChild` ingredients
-     *      per event. When there are more ingredients than children
-     *      the limit lifts (round two), so every ingredient still
-     *      finds a child.
+     *   3. The FREQUENCY GUARD removes candidates who were already
+     *      picked more than FREQUENCY_TOLERANCE times above their
+     *      time-proportional expected share, so no child is
+     *      overworked even when the money difference would keep
+     *      picking them. If EVERY candidate is over, the guard
+     *      stands down (someone must be picked).
+     *   4. Give the ingredient to the remaining candidate with the
+     *      smallest difference.
+     *   5. By default a child brings at most `maxPerChild`
+     *      ingredients per event. When there are more ingredients
+     *      than children the limit lifts one STEP at a time
+     *      (round two, three, ...): the next round starts only
+     *      AFTER every child has reached the current limit, so one
+     *      child can never pile up a third ingredient while
+     *      another still has only one.
      *
      * Tie-breaking (only for EXACTLY equal differences):
      *   a) fewer previous assignments wins (frequency fairness),
@@ -120,30 +147,58 @@
 
       const assignments = [];
 
+      // The per-child limit lifts one step at a time (see step 5 in
+      // the docs above): roundCap is the maximum ingredients a child
+      // may have in THIS event while the current round is open.
+      let roundCap = maxPerChild;
+
       for (const ingredientIndex of order) {
         const price = ingredients[ingredientIndex].price;
 
-        // The group rate shifts slightly as totals change within the
-        // event, so it is recomputed for every single ingredient.
+        // The group rate and the group frequency both shift slightly
+        // as totals change within the event, so they are recomputed
+        // for every single ingredient.
         const groupRate = Fairness.groupRatePerWeek(
           activeKids,
           runningTotals,
           eventDate
         );
+        const groupFrequency = Fairness.groupFrequencyPerWeek(
+          activeKids,
+          runningTotals,
+          eventDate
+        );
 
-        // Candidates below the per-child limit; when nobody is left
-        // (more ingredients than children) everyone is a candidate.
+        // Candidates below the current round cap; when nobody is left
+        // the cap lifts by one step (more ingredients than children).
         let candidates = activeKids.filter(
-          (kid) => assignedCount[kid.id] < maxPerChild
+          (kid) => assignedCount[kid.id] < roundCap
         );
         if (0 === candidates.length) {
+          roundCap += 1;
           candidates = activeKids;
+        }
+
+        // The frequency guard (see step 3 in the docs above): a child
+        // who was already picked more than FREQUENCY_TOLERANCE times
+        // above their time-proportional share takes a break. If every
+        // candidate is over, the guard stands down.
+        let guarded = candidates.filter((kid) => {
+          const expected =
+            groupFrequency * Fairness.weeksInKita(kid.enrolledOn, eventDate);
+
+          return (
+            runningTotals[kid.id].timesAssigned <= expected + FREQUENCY_TOLERANCE
+          );
+        });
+        if (0 === guarded.length) {
+          guarded = candidates;
         }
 
         // Lexicographic minimum of (difference, timesAssigned, random).
         let bestKid = null;
         let bestKey = null;
-        for (const kid of candidates) {
+        for (const kid of guarded) {
           const weeks = Fairness.weeksInKita(kid.enrolledOn, eventDate);
           const difference =
             runningTotals[kid.id].totalSpent - groupRate * weeks;
@@ -197,8 +252,11 @@
      * @param {string} asOfDate - "YYYY-MM-DD", usually today
      * @returns {object} { groupRatePerWeek, costSpread, costSpreadPct,
      *                     frequencySpread, perKid: [...] }
-     *          perKid: only ACTIVE kids, sorted by difference ascending
-     *          (the first entry is "who comes next").
+     *          perKid: only ACTIVE kids, sorted by (frequency guard,
+     *          difference, timesAssigned, name) ascending - the first
+     *          entry is "who comes next", using the same selection
+     *          logic as assign() (without its seed-based random
+     *          tie-break, which belongs to a concrete event).
      */
     static buildOverview(state, asOfDate) {
       const activeKids = state.kids.filter((kid) => kid.active);
@@ -247,8 +305,38 @@
         kid.difference = kid.totalSpent - kid.target;
       }
 
-      // Most "under target" first -> who comes next.
-      perKid.sort((a, b) => a.difference - b.difference);
+      // "Who comes next" mirrors the assignment's selection: first
+      // the frequency guard (a child over their time-proportional
+      // share + FREQUENCY_TOLERANCE takes a break), then the smallest
+      // difference from target, then fewer previous assignments. The
+      // seed-based random tie-break belongs to a CONCRETE event, so
+      // the name is the final stable tie-break here.
+      const totalTimes = perKid.reduce((sum, k) => sum + k.timesAssigned, 0);
+      const groupFrequency = 0 < totalWeeks ? totalTimes / totalWeeks : 0;
+      const overFrequency = (kid) =>
+        kid.timesAssigned >
+        groupFrequency * kid.weeksInKita + FREQUENCY_TOLERANCE
+          ? 1
+          : 0;
+
+      perKid.sort((a, b) => {
+        const overA = overFrequency(a);
+        const overB = overFrequency(b);
+
+        if (overA !== overB) {
+          return overA - overB;
+        }
+
+        if (a.difference !== b.difference) {
+          return a.difference - b.difference;
+        }
+
+        if (a.timesAssigned !== b.timesAssigned) {
+          return a.timesAssigned - b.timesAssigned;
+        }
+
+        return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+      });
 
       // How far apart the group currently is (0 for < 2 children).
       const averageSpent =
@@ -324,6 +412,36 @@
       }
 
       return 0 < totalWeeks ? totalSpent / totalWeeks : 0;
+    }
+
+    /**
+     * The group's average assignment frequency in ASSIGNMENTS per
+     * week - the frequency twin of the group rate:
+     *
+     *   groupFrequency = sum(timesAssigned) / sum(weeksInKita)
+     *
+     * Multiplied with a child's own weeks in the group this yields
+     * their time-proportional EXPECTED number of assignments, which
+     * the frequency guard in assign() compares the actual count
+     * against. A newcomer with few weeks therefore expects few
+     * assignments - no catch-up, no disadvantage.
+     *
+     * @param {Array<{id: string, enrolledOn: string}>} activeKids
+     * @param {Object.<string, {timesAssigned: number}>} runningTotals
+     * @param {string} asOfDate
+     * @returns {number}
+     */
+    static groupFrequencyPerWeek(activeKids, runningTotals, asOfDate) {
+      let totalTimes = 0;
+      let totalWeeks = 0;
+      for (const kid of activeKids) {
+        totalTimes += (
+          runningTotals[kid.id] || { timesAssigned: 0 }
+        ).timesAssigned;
+        totalWeeks += Fairness.weeksInKita(kid.enrolledOn, asOfDate);
+      }
+
+      return 0 < totalWeeks ? totalTimes / totalWeeks : 0;
     }
 
     /**

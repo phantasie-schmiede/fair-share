@@ -4,8 +4,8 @@
 
 A small web app for special meal days in the kindergarten group:
 it fairly decides **which child brings which ingredient** – costs
-count more than frequency, and the time in the kindergarten is taken
-into account.
+decide first, a frequency guardrail keeps the workload fair, and the
+time in the kindergarten is taken into account.
 
 Just open `index.html` and start – **no installation, no server,
 works offline**. Runs on a Windows laptop as well as on tablets and
@@ -66,12 +66,21 @@ phones (responsive layout).
 - The **difference** = paid so far − target. The child furthest
   *below* their target gets the most expensive ingredient first –
   and so on.
-- **New children do not need to catch up:** their target starts
-  small (from the enrollment date), and they join the rotation at
-  the normal pace from the next event.
+- **Frequency guardrail:** fair costs alone do not mean a fair
+  workload – even a cheap ingredient still has to be brought in.
+  A child who has already been picked **more often** than their
+  time in the group justifies (expected assignments = group
+  frequency × time in the group, tolerance: one assignment) takes
+  a break – even when the money difference would pick them first.
+- **New children do not need to catch up:** their target and their
+  expected assignments start small (from the enrollment date), and
+  they join the rotation at the normal pace from the next event.
 - In principle each child brings **at most one ingredient** per
-  event. If there are more ingredients than children, the limit
-  lifts (round two) so that every ingredient finds a child.
+  event. If there are more ingredients than children, a second
+  round starts – but only once **every** child has their first
+  ingredient (round three only after every child has two, and so
+  on). So one child never gets a third ingredient while another
+  still has only one.
 - With an equal difference: the child with **fewer previous
   assignments** goes first. With an exactly equal standing a
   deterministic random value (the seed is stored per event)

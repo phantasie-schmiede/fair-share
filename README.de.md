@@ -4,8 +4,8 @@
 
 Eine kleine Web-App für besondere Essens-Tage in der Kita-Gruppe:
 Sie legt fair fest, **welches Kind welche Zutat mitbringt** – die
-Kosten zählen mehr als die Häufigkeit, und die Zeit in der Kita wird
-berücksichtigt.
+Kosten entscheiden zuerst, eine Häufigkeits-Leitplanke hält die
+Belastung fair, und die Zeit in der Kita wird berücksichtigt.
 
 Einfach `index.html` öffnen und loslegen – **keine Installation, kein
 Server, funktioniert offline**. Läuft am Windows-Laptop sowie auf
@@ -70,12 +70,20 @@ Tablets und Smartphones (responsives Layout).
 - Die **Abweichung** = bisher gezahlt − Soll. Das Kind, das am
   weitesten *unter* seinem Soll liegt, bekommt zuerst die
   teuerste Zutat – und so weiter.
-- **Neue Kinder müssen nicht aufholen:** Ihr Soll startet klein
-  (ab dem Eintrittsdatum), und sie kommen ab dem nächsten Event im
-  normalen Takt dran.
+- **Häufigkeits-Leitplanke:** Faire Kosten allein bedeuten keine
+  faire Arbeitslast – auch eine günstige Zutat muss besorgt werden.
+  Wer deshalb schon **häufiger** dran war, als seine Kita-Zeit es
+  rechtfertigt (erwartete Zuweisungen = Gruppenfrequenz × Zeit in
+  der Kita, Toleranz: eine Zuweisung), bekommt eine Pause – auch
+  wenn die Kostenabweichung sie zuerst an der Reihe hätte.
+- **Neue Kinder müssen nicht aufholen:** Ihr Soll und ihre
+  erwarteten Zuweisungen starten klein (ab dem Eintrittsdatum), und
+  sie kommen ab dem nächsten Event im normalen Takt dran.
 - Grundsätzlich bringt jedes Kind pro Event **maximal eine Zutat**
-  mit. Gibt es mehr Zutaten als Kinder, hebt sich die Grenze
-  (Runde zwei), damit jede Zutat ein Kind findet.
+  mit. Gibt es mehr Zutaten als Kinder, beginnt eine zweite Runde –
+  aber erst, wenn **jedes** Kind seine erste Zutat hat (Runde drei
+  erst, wenn jedes Kind zwei hat, und so weiter). So bekommt nie
+  ein Kind die dritte Zutat, während ein anderes erst eine hat.
 - Bei gleicher Abweichung: Das Kind mit **weniger bisherigen
   Zuweisungen** hat Vorrang. Bei exakt gleichem Stand entscheidet
   ein deterministischer Zufallswert (der Seed wird pro Event
