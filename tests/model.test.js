@@ -749,7 +749,7 @@ test('setIngredientChild and setIngredientPrice flag manual edits', () => {
   const model = DataModel.create(null);
   const kid = model.addKid('Lotte').kid;
   const event = model.addEvent({
-    date: '2026-10-30',
+    date: '2999-12-31',
     ingredients: [
       { childId: kid.id, manual: false, name: 'Cheese', price: 2.99 },
     ],
