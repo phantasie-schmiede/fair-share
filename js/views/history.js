@@ -149,7 +149,7 @@
         <table class="table table-bordered">
           <thead><tr>
             <th>${escapeHtml(i18n.t('history.ingredient'))}</th>
-            <th>${escapeHtml(i18n.t('history.amount'))}</th>
+            <th>${escapeHtml(i18n.t('history.quantity'))}</th>
             <th>${escapeHtml(i18n.t('history.child'))}</th>
           </tr></thead><tbody>`;
 
