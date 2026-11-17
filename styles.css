@@ -54,12 +54,17 @@
     display: block;
   }
 
+  /* Several events per page, but a single event must never be
+   * split across two pages: it moves to the next page instead. */
+  .event-card,
   .poster-section {
-    page-break-after: always;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
-  .poster-section:last-child {
-    page-break-after: auto;
+  /* A clear visual gap between the events on a page. */
+  .poster-section {
+    margin-bottom: 8mm;
   }
 }
 
