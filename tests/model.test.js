@@ -119,6 +119,7 @@ test('fromRaw accepts a minimal valid state and fills defaults', () => {
     events: [
       {
         date: '2026-11-12',
+        participantIds: [],
         ingredients: [{ childId: 'k_x', name: 'Cheese', price: 2.99 }],
       },
     ],
@@ -209,6 +210,7 @@ test('fromRaw rejects arrays beyond the size limits', () => {
     { length: 1001 },
     (value, index) => ({
       date: '2026-01-01',
+      participantIds: [],
       id: 'e_' + index,
       ingredients: [],
       seed: 1,
@@ -252,6 +254,7 @@ test('fromRaw clips over-long user text to 100 characters', () => {
     events: [
       {
         date: '2026-01-01',
+        participantIds: [],
         id: 'e1',
         ingredients: [{ childId: '', name: 'B'.repeat(120), price: 1 }],
         seed: 1,
@@ -285,6 +288,7 @@ test('fromRaw normalizes negative or missing prices to zero', () => {
     events: [
       {
         date: '2026-11-12',
+        participantIds: [],
         ingredients: [
           { childId: 'k_a', name: 'Ok', price: 1.5 },
           { childId: 'k_b', name: 'Bad price', price: -3 },
@@ -745,6 +749,21 @@ test('removeCategory keeps or deletes the items, history untouched', () => {
   assert.equal(model.priceList[0].category, '');
 });
 
+test('priorTotals excludes an edited event without changing saved history', () => {
+  const model = DataModel.create(null);
+  const kid = model.addKid('Lotte').kid;
+  model.addEvent({ date: '2999-12-30', ingredients: [
+    { childId: kid.id, name: 'Bread', price: 3 }], seed: 1 });
+  const edited = model.addEvent({ date: '2999-12-31', ingredients: [
+    { childId: kid.id, name: 'Cheese', price: 12 }], seed: 2 });
+  const before = JSON.stringify(model.toJson());
+  assert.deepEqual(model.priorTotals(edited.id)[kid.id],
+    { totalSpent: 3, timesAssigned: 1 });
+  assert.deepEqual(model.priorTotals()[kid.id],
+    { totalSpent: 15, timesAssigned: 2 });
+  assert.equal(JSON.stringify(model.toJson()), before);
+});
+
 test('setIngredientChild and setIngredientPrice flag manual edits', () => {
   const model = DataModel.create(null);
   const kid = model.addKid('Lotte').kid;
@@ -943,6 +962,7 @@ test('fromRaw prunes expired data on load', () => {
     events: [
       {
         date: '2026-01-01',
+        participantIds: [],
         id: 'e_old',
         ingredients: [{ childId: 'k_old', name: 'Apfel', price: 1.19 }],
         seed: 1,
@@ -950,6 +970,7 @@ test('fromRaw prunes expired data on load', () => {
       },
       {
         date: '2026-01-01',
+        participantIds: [],
         id: 'e_new',
         ingredients: [{ childId: '', name: 'Reis', price: 1.89 }],
         seed: 2,
@@ -998,7 +1019,7 @@ test('fromRaw prunes expired data on load', () => {
 test('fromRaw replaces invalid dates with the defaults', () => {
   const { todayIso } = require('../js/util.js');
   const result = DataModel.fromRaw({
-    events: [{ date: 'garbage', id: 'e_bad', ingredients: [], seed: 1 }],
+    events: [{ date: 'garbage', participantIds: [], id: 'e_bad', ingredients: [], seed: 1 }],
     kids: [{ active: true, enrolledOn: '2026-02-31', id: 'k_bad', name: 'Lili' }],
     metadata: { createdAt: '30.10.2026' },
     version: 1,
@@ -1015,6 +1036,7 @@ test('fromRaw normalizes negative quantities and non-finite prices', () => {
     events: [
       {
         date: '2026-10-30',
+        participantIds: [],
         id: 'e_num',
         ingredients: [
           { childId: '', name: 'Mehl', price: Infinity, quantity: -3, unit: 'g' },
@@ -1044,9 +1066,10 @@ test('fromRaw survives adversarial input without throwing', () => {
     events: [
       'not-an-object',
       null,
-      { ingredients: 'nope', seed: NaN, title: 42 },
+      { participantIds: [], ingredients: 'nope', seed: NaN, title: 42 },
       {
         date: '2026-10-30',
+        participantIds: [],
         ingredients: [42, null, 'x', { price: 'free', quantity: 'a lot' }],
       },
     ],

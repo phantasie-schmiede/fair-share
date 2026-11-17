@@ -4,8 +4,8 @@
 
 A small web app for special meal days in the kindergarten group:
 it fairly decides **which child brings which ingredient** – costs
-decide first, a frequency guardrail keeps the workload fair, and the
-time in the kindergarten is taken into account.
+and frequency are optimized together for the complete event, and the
+actual event participation is taken into account.
 
 Just open `index.html` and start – **no installation, no server,
 works offline**. Runs on a Windows laptop as well as on tablets and
@@ -59,21 +59,26 @@ phones (responsive layout).
 
 ## How the fairness works
 
-- The **group rate** (EUR per week) is calculated from all
-  spending so far.
-- Each child's **target** = group rate × time in the kindergarten
-  (weeks since the enrollment date).
-- The **difference** = paid so far − target. The child furthest
-  *below* their target gets the most expensive ingredient first –
-  and so on.
-- **Frequency guardrail:** fair costs alone do not mean a fair
-  workload – even a cheap ingredient still has to be brought in.
-  A child who has already been picked **more often** than their
-  time in the group justifies (expected assignments = group
-  frequency × time in the group, tolerance: one assignment) takes
-  a break – even when the money difference would pick them first.
+- Each event saves its **participant list**, including children without
+  an ingredient assignment. A child's **cost target** sums event costs
+  divided by that event's participant count for every attended event.
+  The **frequency target** similarly sums ingredient counts divided by
+  participant counts. Departures never rewrite other children's past shares.
+  Event edits recompute shares but preserve the saved participant list.
+- The **difference** = paid so far − target. Planning calculates both
+  cost and frequency targets including the entire new event, proportional
+  using equal new shares for all participants of this event.
+- **Whole-event optimization:** an initial plan starts with expensive
+  ingredients. Ingredients are then swapped or moved between children
+  while the joint score improves (up to 100 iterations for live previews).
+  The score sums squared cost deviations and weighted squared frequency
+  deviations. One assignment deviation is weighted like twice the event's
+  average ingredient price. Free events use the historical average, or
+  1 EUR when the history is also free, as the weighting basis.
+  This is a local search, not a guaranteed global optimum or spread cap.
+  Ingredients are not split automatically.
 - **New children do not need to catch up:** their target and their
-  expected assignments start small (from the enrollment date), and
+  expected assignments start at zero, and
   they join the rotation at the normal pace from the next event.
 - In principle each child brings **at most one ingredient** per
   event. If there are more ingredients than children, a second
@@ -81,14 +86,17 @@ phones (responsive layout).
   ingredient (round three only after every child has two, and so
   on). So one child never gets a third ingredient while another
   still has only one.
-- With an equal difference: the child with **fewer previous
-  assignments** goes first. With an exactly equal standing a
-  deterministic random value (the seed is stored per event)
-  decides – same inputs always give the same result, so equally
-  strong families rotate instead of one always going first.
+- Exact ties in the initial assignment use a deterministic random value
+  from the saved event seed. Identical inputs produce identical results.
+  Saved events are not automatically reassigned. Editing excludes the
+  event being replaced from its own assignment history.
 
-The **Overview** shows at a glance who is next, what each family
-has paid so far and how balanced the group currently is.
+The **Overview** gives a provisional recommendation for one average-price
+ingredient, total costs and spreads. A concrete plan may recommend someone
+else. Frequency counts ingredient assignments, not events. Displayed spreads
+compare target deviations, not absolute totals across different attendance
+histories. Old test files without participant lists are rejected; missing
+attendance information is neither guessed nor migrated.
 
 ## Where is the data stored?
 

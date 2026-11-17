@@ -147,14 +147,14 @@ window.I18N_DE = {
   'nav.prices': 'Preisliste',
   'overview.activeKidsLabel': 'Kinder in der Gruppe',
   'overview.child': 'Kind',
-  'overview.costSpread': 'Kosten-Spreizung',
+  'overview.costSpread': 'Kosten-Sollabweichungs-Spreizung',
   'overview.difference': 'Abweichung vom Soll',
   'overview.emptyKids':
     'Noch keine Kinder angelegt. Fügt eure Gruppe im Tab „Kinder“ hinzu.',
-  'overview.frequencySpread': 'Häufigkeits-Spreizung',
+  'overview.frequencySpread': 'Häufigkeits-Sollabweichungs-Spreizung',
   'overview.legend':
-    '„Abweichung vom Soll“ zeigt, wie weit ein Kind von einem fairen Anteil für seine Kita-Zeit entfernt ist: negativ = hat bisher weniger gezahlt (kommt bald dran), positiv = hat kürzlich mehr gezahlt.',
-  'overview.nextUp': 'Als Nächstes dran',
+    'Das Soll summiert gleiche Kosten- und Aufgabenanteile jedes Events, an dem das Kind teilgenommen hat. Negativ = weniger übernommen als das Soll, positiv = mehr. Die Spreizungen vergleichen Sollabweichungen, nicht Gesamtsummen unterschiedlicher Teilnahmezeiten. „Mal dran“ zählt Zutaten-Zuweisungen. Die Empfehlung ist vorläufig.',
+  'overview.nextUp': 'Voraussichtlich als Nächstes dran',
   'overview.planEvent': 'Neues Event planen',
   'overview.rate': 'Gruppenrate',
   'overview.times': 'Mal dran',

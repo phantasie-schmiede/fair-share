@@ -4,8 +4,8 @@
 
 Eine kleine Web-App für besondere Essens-Tage in der Kita-Gruppe:
 Sie legt fair fest, **welches Kind welche Zutat mitbringt** – die
-Kosten entscheiden zuerst, eine Häufigkeits-Leitplanke hält die
-Belastung fair, und die Zeit in der Kita wird berücksichtigt.
+Kosten und Häufigkeit werden gemeinsam für das gesamte Event
+optimiert, und die tatsächlichen Event-Teilnahmen werden berücksichtigt.
 
 Einfach `index.html` öffnen und loslegen – **keine Installation, kein
 Server, funktioniert offline**. Läuft am Windows-Laptop sowie auf
@@ -63,37 +63,48 @@ Tablets und Smartphones (responsives Layout).
 
 ## So funktioniert die Fairness
 
-- Aus allen bisherigen Ausgaben wird die **Gruppenrate**
-  (Euro pro Woche) berechnet.
-- Das **Soll** jedes Kindes = Gruppenrate × Zeit in der Kita
-  (Wochen seit dem Eintrittsdatum).
-- Die **Abweichung** = bisher gezahlt − Soll. Das Kind, das am
-  weitesten *unter* seinem Soll liegt, bekommt zuerst die
-  teuerste Zutat – und so weiter.
-- **Häufigkeits-Leitplanke:** Faire Kosten allein bedeuten keine
-  faire Arbeitslast – auch eine günstige Zutat muss besorgt werden.
-  Wer deshalb schon **häufiger** dran war, als seine Kita-Zeit es
-  rechtfertigt (erwartete Zuweisungen = Gruppenfrequenz × Zeit in
-  der Kita, Toleranz: eine Zuweisung), bekommt eine Pause – auch
-  wenn die Kostenabweichung sie zuerst an der Reihe hätte.
+- Jedes Event speichert seine **Teilnehmerliste**, auch Kinder ohne
+  Zutaten-Zuweisung. Das **Kostensoll** eines Kindes summiert für jedes
+  besuchte Event dessen Kosten geteilt durch die damalige Teilnehmerzahl.
+  Das **Häufigkeitssoll** summiert entsprechend die Zutatenanzahl geteilt
+  durch die Teilnehmerzahl. Ein Austritt verändert vergangene Sollanteile
+  der anderen Kinder nicht. Event-Änderungen berechnen die Anteile neu,
+  behalten aber die gespeicherte Teilnehmerliste.
+- Die **Abweichung** = bisher gezahlt − Soll. Für die Planung werden
+  Kosten- und Häufigkeits-Soll inklusive des gesamten neuen Events
+  berechnet, mit gleichen neuen Anteilen für alle Teilnehmer dieses Events.
+- **Gesamtevent-Optimierung:** Eine erste Verteilung beginnt mit den
+  teuersten Zutaten. Anschließend werden Zutaten zwischen Kindern
+  getauscht oder verschoben, solange die gemeinsame Bewertung besser
+  wird (maximal 100 Verbesserungsschritte für die Live-Vorschau).
+  Bewertet wird die Summe der quadrierten Kostenabweichungen plus der
+  gewichteten quadrierten Häufigkeitsabweichungen. Eine Zuweisungsabweichung
+  zählt dabei wie der doppelte durchschnittliche Zutatenpreis des Events.
+  Bei kostenlosen Events dient der historische Durchschnitt als
+  Gewichtungsbasis, bei ebenfalls kostenloser Historie ersatzweise 1 €.
+  Dies ist eine lokale Optimierung, keine Garantie für das globale Optimum
+  oder eine feste maximale Spreizung. Zutaten werden nicht automatisch geteilt.
 - **Neue Kinder müssen nicht aufholen:** Ihr Soll und ihre
-  erwarteten Zuweisungen starten klein (ab dem Eintrittsdatum), und
+  erwarteten Zuweisungen starten bei null, und
   sie kommen ab dem nächsten Event im normalen Takt dran.
 - Grundsätzlich bringt jedes Kind pro Event **maximal eine Zutat**
   mit. Gibt es mehr Zutaten als Kinder, beginnt eine zweite Runde –
   aber erst, wenn **jedes** Kind seine erste Zutat hat (Runde drei
   erst, wenn jedes Kind zwei hat, und so weiter). So bekommt nie
   ein Kind die dritte Zutat, während ein anderes erst eine hat.
-- Bei gleicher Abweichung: Das Kind mit **weniger bisherigen
-  Zuweisungen** hat Vorrang. Bei exakt gleichem Stand entscheidet
-  ein deterministischer Zufallswert (der Seed wird pro Event
-  gespeichert) – gleiche Eingaben liefern immer dasselbe Ergebnis,
-  gleich starke Familien rotieren also, anstatt dass immer eine
-  zuerst an der Reihe ist.
+- Bei exakt gleicher Bewertung der ersten Zuteilung entscheidet ein
+  deterministischer Zufallswert (der Seed wird pro Event gespeichert).
+  Gleiche Eingaben liefern immer dasselbe Ergebnis. Gespeicherte Events
+  werden nicht automatisch neu verteilt. Beim Bearbeiten zählt das zu
+  ersetzende Event nicht als eigene Vorgeschichte.
 
-In der **Übersicht** seht ihr auf einen Blick, wer als Nächstes dran
-ist, was jede Familie bisher gezahlt hat und wie ausgeglichen die
-Gruppe aktuell ist.
+In der **Übersicht** seht ihr eine vorläufige Empfehlung für die nächste
+durchschnittlich teure Zutat, die bisherigen Kosten und die Spreizungen.
+Ein konkreter Eventplan kann eine andere Empfehlung ergeben. „Mal dran“
+zählt Zutaten-Zuweisungen, nicht Events. Die angezeigten Spreizungen beziehen
+sich auf Sollabweichungen, nicht auf absolute Summen unterschiedlicher
+Teilnahmezeiten. Alte Testdateien ohne Teilnehmerlisten werden abgelehnt;
+es gibt keine Schätzung oder Migration der fehlenden Teilnahmeinformationen.
 
 ## Wo werden die Daten gespeichert?
 

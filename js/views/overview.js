@@ -57,14 +57,12 @@
         ) +
         metricTile(
           i18n.t('overview.costSpread'),
-          i18n.formatMoney(stats.costSpread) +
-            (0 < stats.costSpreadPct
-              ? ' (' + Math.round(stats.costSpreadPct * 100) + '%)'
-              : '')
+          i18n.formatMoney(stats.costTargetSpread)
         ) +
         metricTile(
           i18n.t('overview.frequencySpread'),
-          String(stats.frequencySpread)
+          stats.frequencyTargetSpread.toLocaleString(i18n.language,
+            { maximumFractionDigits: 2 })
         ) +
         '</div>';
 

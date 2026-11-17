@@ -7,15 +7,9 @@
  *   - how the group rate and each child's fair target are computed,
  *   - the assignment algorithm itself.
  *
- * Two fairness axes:
- *
- *   1. MONEY: "The family that is furthest BELOW its fair share gets
- *      the most expensive ingredient first - and so on."
- *   2. FREQUENCY: a child who was already picked more than
- *      FREQUENCY_TOLERANCE times above their time-proportional share
- *      takes a break - even when the money difference would pick them
- *      again. Fair COSTS alone do not mean a fair WORKLOAD, because
- *      cheap ingredients still have to be brought in.
+ * Optimize the complete event against two participation-based targets:
+ * money and assignment frequency. A greedy starting plan is improved
+ * by moving and swapping ingredients, without changing past events.
  *
  * Fairness is a stateless service (all methods are static): it only
  * receives data, returns results, and never mutates its input. That
@@ -54,53 +48,60 @@
     return 0;
   }
 
-  /**
-   * The frequency guard tolerance, in ASSIGNMENTS: a child who was
-   * already picked more than this many times above their
-   * time-proportional expected share (group frequency × weeks in the
-   * group) is not a candidate for the next ingredient - unless every
-   * candidate is over, in which case the guard stands down. Because
-   * the expectation scales with the enrollment date, a newcomer is
-   * judged on their OWN time in the group and never has to "catch
-   * up" to the older children.
-   */
-  const FREQUENCY_TOLERANCE = 1;
+  // One assignment deviation is weighted like twice the event's average
+  // ingredient price. These are soft objectives, not guaranteed spread caps.
+  const FREQUENCY_WEIGHT = 2;
+  const MAX_IMPROVEMENTS = 100;
+  const SCORE_EPSILON = 1e-8;
 
   class Fairness {
+    /** Derive cumulative fair shares from each event's participant snapshot.
+     * Attending children without an ingredient also accrue a fair share.
+     * Missing snapshots are invalid: attendance must never be guessed.
+     */
+    static buildTargets(state, excludeEventId) {
+      const targets = {};
+      for (const event of state.events) {
+        if (event.id === excludeEventId && undefined !== excludeEventId) {
+          continue;
+        }
+        if (!Array.isArray(event.participantIds)) {
+          throw new Error('Event participantIds are required');
+        }
+        const ids = [...new Set(event.participantIds)];
+        if (!ids.length) {
+          continue;
+        }
+        const cost = event.ingredients.reduce((sum, ing) => sum + ing.price, 0) /
+          ids.length;
+        const times = event.ingredients.length / ids.length;
+        for (const id of ids) {
+          const target = targets[id] || (targets[id] = { totalSpent: 0,
+            timesAssigned: 0 });
+          target.totalSpent += cost;
+          target.timesAssigned += times;
+        }
+      }
+      return targets;
+    }
+
     /**
      * Assign the ingredients of one event to the children of the group.
      *
-     * Step by step:
-     *   1. Sort the ingredients by descending price.
-     *   2. For each ingredient, compute every candidate's current
-     *      difference from target (totalSpent - groupRate * weeks),
-     *      using running totals that already include the ingredients
-     *      placed earlier in THIS event.
-     *   3. The FREQUENCY GUARD removes candidates who were already
-     *      picked more than FREQUENCY_TOLERANCE times above their
-     *      time-proportional expected share, so no child is
-     *      overworked even when the money difference would keep
-     *      picking them. If EVERY candidate is over, the guard
-     *      stands down (someone must be picked).
-     *   4. Give the ingredient to the remaining candidate with the
-     *      smallest difference.
-     *   5. By default a child brings at most `maxPerChild`
-     *      ingredients per event. When there are more ingredients
-     *      than children the limit lifts one STEP at a time
-     *      (round two, three, ...): the next round starts only
-     *      AFTER every child has reached the current limit, so one
-     *      child can never pile up a third ingredient while
-     *      another still has only one.
-     *
-     * Tie-breaking (only for EXACTLY equal differences):
-     *   a) fewer previous assignments wins (frequency fairness),
-     *   b) then a deterministic random value from the event seed
-     *      (equal families rotate instead of one always winning).
+     * Targets add equal shares of this event to prior participation targets.
+     * Minimize the sum of squared cost and weighted frequency deviations.
+     * Start with expensive ingredients, then repeatedly choose the best
+     * improving move or swap (at most 100 iterations for live previews).
+     * Moves preserve per-event round limits; swaps preserve counts.
+     * Exact initial ties use the saved event seed. This is a deterministic
+     * local search, not a guarantee of the global optimum or a spread cap.
      *
      * @param {object} params
      * @param {Array<{id: string, enrolledOn: string}>} params.activeKids
-     * @param {Object.<string, {totalSpent: number, timesAssigned: number}>}
-     *        params.priorTotals - what each child got in ALL PREVIOUS events
+     * @param {Object.<string, {totalSpent: number, timesAssigned: number}>} params.priorTotals
+     *        - what each child got in ALL PREVIOUS events
+     * @param {Object.<string, {totalSpent: number, timesAssigned: number}>} params.priorTargets
+     *        - cumulative fair shares before this event
      * @param {Array<{name: string, price: number}>} params.ingredients
      * @param {string} params.eventDate - "YYYY-MM-DD"
      * @param {number} params.seed
@@ -112,9 +113,10 @@
      */
     static assign(params) {
       const activeKids = params.activeKids;
-      const eventDate = params.eventDate;
       const ingredients = params.ingredients;
-      const maxPerChild = Math.max(1, Math.floor(params.maxPerChild));
+      const maxPerChild = Number.isFinite(params.maxPerChild)
+        ? Math.max(1, Math.floor(params.maxPerChild))
+        : 1;
       const priorTotals = params.priorTotals || {};
       const seed = params.seed;
 
@@ -128,123 +130,142 @@
         .map((ing, index) => index)
         .sort((a, b) => ingredients[b].price - ingredients[a].price);
 
-      // Running totals for this event (previous events + this event).
-      const runningTotals = {};
-      for (const kid of activeKids) {
-        const prior =
-          priorTotals[kid.id] || { timesAssigned: 0, totalSpent: 0 };
-        runningTotals[kid.id] = {
-          timesAssigned: prior.timesAssigned,
-          totalSpent: prior.totalSpent,
-        };
-      }
-
-      // How often each child was already placed in THIS event.
-      const assignedCount = {};
-      for (const kid of activeKids) {
-        assignedCount[kid.id] = 0;
-      }
-
-      const assignments = [];
-
-      // The per-child limit lifts one step at a time (see step 5 in
-      // the docs above): roundCap is the maximum ingredients a child
-      // may have in THIS event while the current round is open.
+      const cost = activeKids.map((kid) =>
+        (priorTotals[kid.id] || {}).totalSpent || 0
+      );
+      const times = activeKids.map((kid) =>
+        (priorTotals[kid.id] || {}).timesAssigned || 0
+      );
+      const eventCost = ingredients.reduce((sum, ing) => sum + ing.price, 0);
+      const priorTargets = params.priorTargets || {};
+      const targetCost = activeKids.map((kid) =>
+        ((priorTargets[kid.id] || {}).totalSpent || 0) +
+          eventCost / activeKids.length);
+      const targetTimes = activeKids.map((kid) =>
+        ((priorTargets[kid.id] || {}).timesAssigned || 0) +
+          ingredients.length / activeKids.length);
+      // Free ingredients still count as work. Use historical average cost
+      // (or 1 EUR for an entirely free history) only when this event is free.
+      const priorCount = times.reduce((sum, value) => sum + value, 0);
+      const averagePrice = eventCost > 0
+        ? eventCost / ingredients.length
+        : (priorCount > 0 ? cost.reduce((sum, value) => sum + value, 0) /
+          priorCount : 0) || 1;
+      const weight = Math.pow(FREQUENCY_WEIGHT * averagePrice, 2);
+      const score = (kid, spent, count) =>
+        Math.pow(spent - targetCost[kid], 2) +
+        weight * Math.pow(count - targetTimes[kid], 2);
+      const counts = activeKids.map(() => 0);
+      const assigned = [];
       let roundCap = maxPerChild;
-
       for (const ingredientIndex of order) {
         const price = ingredients[ingredientIndex].price;
-
-        // The group rate and the group frequency both shift slightly
-        // as totals change within the event, so they are recomputed
-        // for every single ingredient.
-        const groupRate = Fairness.groupRatePerWeek(
-          activeKids,
-          runningTotals,
-          eventDate
-        );
-        const groupFrequency = Fairness.groupFrequencyPerWeek(
-          activeKids,
-          runningTotals,
-          eventDate
-        );
-
-        // Candidates below the current round cap; when nobody is left
-        // the cap lifts by one step (more ingredients than children).
-        let candidates = activeKids.filter(
-          (kid) => assignedCount[kid.id] < roundCap
-        );
-        if (0 === candidates.length) {
+        if (counts.every((count) => count >= roundCap)) {
           roundCap += 1;
-          candidates = activeKids;
         }
-
-        // The frequency guard (see step 3 in the docs above): a child
-        // who was already picked more than FREQUENCY_TOLERANCE times
-        // above their time-proportional share takes a break. If every
-        // candidate is over, the guard stands down.
-        let guarded = candidates.filter((kid) => {
-          const expected =
-            groupFrequency * Fairness.weeksInKita(kid.enrolledOn, eventDate);
-
-          return (
-            runningTotals[kid.id].timesAssigned <= expected + FREQUENCY_TOLERANCE
-          );
-        });
-        if (0 === guarded.length) {
-          guarded = candidates;
-        }
-
-        // Lexicographic minimum of (difference, timesAssigned, random).
-        let bestKid = null;
+        let bestKid = -1;
         let bestKey = null;
-        for (const kid of guarded) {
-          const weeks = Fairness.weeksInKita(kid.enrolledOn, eventDate);
-          const difference =
-            runningTotals[kid.id].totalSpent - groupRate * weeks;
+        for (let kid = 0; kid < activeKids.length; kid++) {
+          if (counts[kid] >= roundCap) {
+            continue;
+          }
           const key = [
-            difference,
-            runningTotals[kid.id].timesAssigned,
-            Fairness.deterministicRandom(
-              seed,
-              kid.id,
-              String(ingredientIndex)
-            ),
+            score(kid, cost[kid] + price, times[kid] + 1) -
+              score(kid, cost[kid], times[kid]),
+            Fairness.deterministicRandom(seed, activeKids[kid].id,
+              String(ingredientIndex)),
           ];
-
           if (null === bestKey || compareTuples(key, bestKey) < 0) {
             bestKid = kid;
             bestKey = key;
           }
         }
-
-        runningTotals[bestKid.id].totalSpent += price;
-        runningTotals[bestKid.id].timesAssigned += 1;
-        assignedCount[bestKid.id] += 1;
-        assignments.push({
-          childId: bestKid.id,
-          ingredientIndex: ingredientIndex,
-        });
+        cost[bestKid] += price;
+        times[bestKid] += 1;
+        counts[bestKid] += 1;
+        assigned[ingredientIndex] = bestKid;
       }
 
-      return assignments;
+      // With the default limit each child gets floor(m/n) or ceil(m/n).
+      // A configured larger first-round limit keeps its existing semantics.
+      const minimum = ingredients.length >= activeKids.length * maxPerChild
+        ? Math.floor(ingredients.length / activeKids.length) : 0;
+      const maximum = Math.max(maxPerChild,
+        Math.ceil(ingredients.length / activeKids.length));
+      for (let step = 0; step < MAX_IMPROVEMENTS; step++) {
+        let bestDelta = -SCORE_EPSILON;
+        let action = null;
+        for (let i = 0; i < ingredients.length; i++) {
+          const a = assigned[i];
+          const price = ingredients[i].price;
+          const beforeA = score(a, cost[a], times[a]);
+          if (counts[a] > minimum) {
+            for (let b = 0; b < activeKids.length; b++) {
+              if (a === b || counts[b] >= maximum) {
+                continue;
+              }
+              const delta = score(a, cost[a] - price, times[a] - 1) +
+                score(b, cost[b] + price, times[b] + 1) - beforeA -
+                score(b, cost[b], times[b]);
+              if (delta < bestDelta) {
+                bestDelta = delta;
+                action = { i: i, a: a, b: b };
+              }
+            }
+          }
+          for (let j = i + 1; j < ingredients.length; j++) {
+            const b = assigned[j];
+            if (a === b) {
+              continue;
+            }
+            const change = ingredients[j].price - price;
+            const delta = score(a, cost[a] + change, times[a]) +
+              score(b, cost[b] - change, times[b]) - beforeA -
+              score(b, cost[b], times[b]);
+            if (delta < bestDelta) {
+              bestDelta = delta;
+              action = { i: i, j: j, a: a, b: b };
+            }
+          }
+        }
+        if (!action) {
+          break;
+        }
+        const { i, j, a, b } = action;
+        if (undefined !== j) {
+          const change = ingredients[j].price - ingredients[i].price;
+          cost[a] += change;
+          cost[b] -= change;
+          assigned[i] = b;
+          assigned[j] = a;
+        } else {
+          cost[a] -= ingredients[i].price;
+          cost[b] += ingredients[i].price;
+          times[a] -= 1;
+          times[b] += 1;
+          counts[a] -= 1;
+          counts[b] += 1;
+          assigned[i] = b;
+        }
+      }
+      return order.map((i) => ({
+        ingredientIndex: i,
+        childId: activeKids[assigned[i]].id,
+      }));
     }
 
     /**
      * Compute the numbers shown in the Overview, as of a given date.
      *
-     * Time-weighted fairness:
+     * Participation-based fairness:
      *
-     *   target     = groupRate * weeksInKita(child, asOfDate)
+     *   target     = sum(eventCost / participantCount for attended events)
      *   difference = totalSpent - target
      *
-     * Negative difference  -> family paid less than a fair share for
-     *                         their time in the group (picked soon).
+     * Negative difference  -> family paid less than their participation share.
      * Positive difference   -> the opposite (paid recently).
      *
-     * Because the target scales with the enrollment date, a newly
-     * enrolled child joins the rotation at the NORMAL PACE - they do
-     * not have to "catch up" to the absolute totals of older children.
+     * New children accrue targets only for events they participate in.
      *
      * Works on the plain state object (DataModel.toJson() shape).
      *
@@ -252,14 +273,12 @@
      * @param {string} asOfDate - "YYYY-MM-DD", usually today
      * @returns {object} { groupRatePerWeek, costSpread, costSpreadPct,
      *                     frequencySpread, perKid: [...] }
-     *          perKid: only ACTIVE kids, sorted by (frequency guard,
-     *          difference, timesAssigned, name) ascending - the first
-     *          entry is "who comes next", using the same selection
-     *          logic as assign() (without its seed-based random
-     *          tie-break, which belongs to a concrete event).
+     *          perKid: only ACTIVE kids. The first entry is a provisional
+     *          recommendation for one average-price ingredient, using assign().
      */
     static buildOverview(state, asOfDate) {
-      const activeKids = state.kids.filter((kid) => kid.active);
+      const activeKids = state.kids.filter((kid) => kid.active &&
+        kid.enrolledOn <= asOfDate);
 
       // What every active child has been assigned so far.
       const totals = {};
@@ -299,32 +318,31 @@
       const totalSpent = perKid.reduce((sum, k) => sum + k.totalSpent, 0);
       const totalWeeks = perKid.reduce((sum, k) => sum + k.weeksInKita, 0);
       const groupRatePerWeek = 0 < totalWeeks ? totalSpent / totalWeeks : 0;
+      const targets = Fairness.buildTargets(state);
 
       for (const kid of perKid) {
-        kid.target = groupRatePerWeek * kid.weeksInKita;
+        kid.target = (targets[kid.id] || {}).totalSpent || 0;
+        kid.frequencyTarget = (targets[kid.id] || {}).timesAssigned || 0;
+        kid.frequencyDifference = kid.timesAssigned - kid.frequencyTarget;
         kid.difference = kid.totalSpent - kid.target;
       }
 
-      // "Who comes next" mirrors the assignment's selection: first
-      // the frequency guard (a child over their time-proportional
-      // share + FREQUENCY_TOLERANCE takes a break), then the smallest
-      // difference from target, then fewer previous assignments. The
-      // seed-based random tie-break belongs to a CONCRETE event, so
-      // the name is the final stable tie-break here.
+      // An exact recommendation needs an event plan. Estimate with the
+      // same optimizer using one historical average-price ingredient.
       const totalTimes = perKid.reduce((sum, k) => sum + k.timesAssigned, 0);
-      const groupFrequency = 0 < totalWeeks ? totalTimes / totalWeeks : 0;
-      const overFrequency = (kid) =>
-        kid.timesAssigned >
-        groupFrequency * kid.weeksInKita + FREQUENCY_TOLERANCE
-          ? 1
-          : 0;
-
+      const recommendation = Fairness.assign({
+        activeKids: activeKids,
+        priorTotals: totals,
+        priorTargets: targets,
+        ingredients: [{ price: totalTimes > 0 ? totalSpent / totalTimes : 1 }],
+        eventDate: asOfDate,
+        maxPerChild: 1,
+        seed: 0,
+      });
+      const nextId = recommendation.length ? recommendation[0].childId : null;
       perKid.sort((a, b) => {
-        const overA = overFrequency(a);
-        const overB = overFrequency(b);
-
-        if (overA !== overB) {
-          return overA - overB;
+        if (a.id === nextId || b.id === nextId) {
+          return a.id === nextId ? -1 : 1;
         }
 
         if (a.difference !== b.difference) {
@@ -353,12 +371,20 @@
           ? Math.max.apply(null, countValues) -
             Math.min.apply(null, countValues)
           : 0;
+      const costTargetSpread = perKid.length > 1
+        ? Math.max(...perKid.map((kid) => kid.difference)) -
+          Math.min(...perKid.map((kid) => kid.difference)) : 0;
+      const frequencyTargetSpread = perKid.length > 1
+        ? Math.max(...perKid.map((kid) => kid.frequencyDifference)) -
+          Math.min(...perKid.map((kid) => kid.frequencyDifference)) : 0;
       const costSpreadPct = 0 < averageSpent ? costSpread / averageSpent : 0;
 
       return {
         costSpread: costSpread,
         costSpreadPct: costSpreadPct,
         frequencySpread: frequencySpread,
+        costTargetSpread: costTargetSpread,
+        frequencyTargetSpread: frequencyTargetSpread,
         groupRatePerWeek: groupRatePerWeek,
         perKid: perKid,
       };
@@ -421,9 +447,8 @@
      *   groupFrequency = sum(timesAssigned) / sum(weeksInKita)
      *
      * Multiplied with a child's own weeks in the group this yields
-     * their time-proportional EXPECTED number of assignments, which
-     * the frequency guard in assign() compares the actual count
-     * against. A newcomer with few weeks therefore expects few
+     * their time-proportional EXPECTED number of assignments.
+     * A newcomer with few weeks therefore expects few
      * assignments - no catch-up, no disadvantage.
      *
      * @param {Array<{id: string, enrolledOn: string}>} activeKids

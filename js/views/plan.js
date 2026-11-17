@@ -142,7 +142,11 @@
     const i18n = app.i18n;
     const model = app.model;
     const draft = app.planDraft;
-    const activeKids = model.activeKids();
+    const editedEvent = draft.eventId ? model.eventById(draft.eventId) : null;
+    const activeKids = editedEvent
+      ? model.kids.filter((kid) => editedEvent.participantIds.includes(kid.id))
+      : model.activeKids().filter((kid) =>
+        kid.enrolledOn <= (draft.date || Util.todayIso()));
 
     if (0 === activeKids.length) {
       window.alert(i18n.t('plan.error.noKids'));
@@ -185,7 +189,8 @@
         };
       }),
       maxPerChild: model.settings.maxIngredientsPerChild,
-      priorTotals: model.priorTotals(),
+      priorTotals: model.priorTotals(draft.eventId),
+      priorTargets: Fairness.buildTargets(model.toJson(), draft.eventId),
       seed: draft.seed,
     });
 
@@ -236,7 +241,11 @@
     const i18n = app.i18n;
     const model = app.model;
     const draft = app.planDraft;
-    const activeKids = model.activeKids();
+    const editedEvent = draft.eventId ? model.eventById(draft.eventId) : null;
+    const activeKids = editedEvent
+      ? model.kids.filter((kid) => editedEvent.participantIds.includes(kid.id))
+      : model.activeKids().filter((kid) =>
+        kid.enrolledOn <= (draft.date || Util.todayIso()));
     const warningBox = document.getElementById('plan-warning');
     const assignedCells = document.querySelectorAll(
       '#plan-rows tr .ing-assigned'
@@ -292,7 +301,8 @@
         return { name: row.name, price: row.price };
       }),
       maxPerChild: model.settings.maxIngredientsPerChild,
-      priorTotals: model.priorTotals(),
+      priorTotals: model.priorTotals(draft.eventId),
+      priorTargets: Fairness.buildTargets(model.toJson(), draft.eventId),
       seed: draft.seed,
     });
 
@@ -303,8 +313,8 @@
       cellByPosition.set(position, assignedCells[row.index]);
     });
 
-    assignments.forEach(function (assignment, position) {
-      const cell = cellByPosition.get(position);
+    assignments.forEach(function (assignment) {
+      const cell = cellByPosition.get(assignment.ingredientIndex);
       const kid = model.kidById(assignment.childId);
 
       if (cell && kid) {

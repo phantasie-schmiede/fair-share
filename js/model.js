@@ -248,6 +248,9 @@
     addEvent(definition) {
       const event = {
         date: definition.date,
+        participantIds: this.activeKids()
+          .filter((kid) => kid.enrolledOn <= definition.date)
+          .map((kid) => kid.id),
         id: Util.generateId('e'),
         ingredients: definition.ingredients.map(ingredientFromDefinition),
         seed: definition.seed,
@@ -377,13 +380,17 @@
     /**
      * Sum up, for every child, everything assigned across all events.
      *
+     * @param {string} [excludeEventId] - event being replaced during editing
      * @returns {Object.<string, {totalSpent: number, timesAssigned: number}>}
      *          keyed by child id (kids without assignments are absent)
      */
-    priorTotals() {
+    priorTotals(excludeEventId) {
       const totals = {};
 
       for (const event of this.events) {
+        if (event.id === excludeEventId) {
+          continue;
+        }
         for (const ingredient of event.ingredients) {
           const id = ingredient.childId;
 
@@ -865,6 +872,11 @@
         'Too many events: ' + raw.events.length + ' (max ' + LIMITS.events + ').'
       );
     }
+    if (Array.isArray(raw.events) && raw.events.some((event) =>
+      event && 'object' === typeof event &&
+      !Array.isArray(event.participantIds))) {
+      throw new Error('Every event requires participantIds; old data must be recreated.');
+    }
     if (Array.isArray(raw.kids) && LIMITS.kids < raw.kids.length) {
       throw new Error(
         'Too many kids: ' + raw.kids.length + ' (max ' + LIMITS.kids + ').'
@@ -975,6 +987,10 @@
         .filter((event) => 'object' === typeof event && null !== event)
         .map((event) => ({
           date: Util.isIsoDate(event.date) ? event.date : Util.todayIso(),
+          participantIds: Array.isArray(event.participantIds)
+            ? [...new Set(event.participantIds.filter((id) =>
+              'string' === typeof id && id.length > 0))].slice(0, LIMITS.kids)
+            : undefined,
           id:
             'string' === typeof event.id && event.id
               ? event.id

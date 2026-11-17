@@ -111,13 +111,13 @@ test('the same seed always produces the same assignment', () => {
   assert.deepEqual(Fairness.assign(params), Fairness.assign(params));
 });
 
-/* The frequency guard ------------------------------------------------------- */
+/* Joint cost and frequency optimization ------------------------------------ */
 
 test('a child picked far more often than their share takes a break', () => {
   // The report scenario: six children, one of them was assigned 9 times
   // while the others only 4-5 times. The over-picked child is also the
   // best on cost (many cheap ingredients) - the money difference alone
-  // would pick them again. The frequency guard pushes them back.
+  // would pick them again. The joint score favors the less-assigned kids.
   const result = Fairness.assign({
     activeKids: [
       kid('a'),
@@ -145,30 +145,25 @@ test('a child picked far more often than their share takes a break', () => {
   // 'a' has the smallest difference from target but 9 assignments
   // against 4-5 for the others - the break is worth it.
   assert.notEqual(result[0].childId, 'a');
-  // Among the eligible children 'f' (21 EUR paid) is furthest below
+  // Among the less-assigned children 'f' (21 EUR paid) is furthest below
   // target.
   assert.equal(result[0].childId, 'f');
 });
 
-test('a child just one assignment above their share is still eligible', () => {
+test('frequency is considered even when a more frequently assigned child paid less', () => {
   const result = Fairness.assign({
     activeKids: [kid('a'), kid('b'), kid('c'), kid('d')],
     eventDate: '2026-06-15',
     ingredients: [{ name: 'cheese', price: 10 }],
     maxPerChild: 1,
-    // 'd' was assigned once MORE than the others (4 vs 3) - within the
-    // tolerance of one - and is also the best on cost, so 'd' wins.
+    // Unlike the old tolerance guard, both deviations matter immediately.
     priorTotals: totals({ a: [40, 3], b: [41, 3], c: [42, 3], d: [30, 4] }),
     seed: 42,
   });
-  assert.equal(result[0].childId, 'd');
+  assert.equal(result[0].childId, 'a');
 });
 
-test('if every round candidate is over frequency the guard stands down', () => {
-  // Three children, two ingredients. After the first ingredient the
-  // only candidates (the two not capped) are BOTH over frequency - the
-  // guard cannot simply refuse to assign, so it stands down and the
-  // money difference decides.
+test('ingredients remain fully assigned when historical frequencies are unequal', () => {
   const result = Fairness.assign({
     activeKids: [kid('a'), kid('b'), kid('c')],
     eventDate: '2026-06-15',
@@ -187,7 +182,7 @@ test('if every round candidate is over frequency the guard stands down', () => {
   assert.equal(result[0].childId, 'a', 'the under-assigned child first');
   assert.ok(
     ['b', 'c'].includes(result[1].childId),
-    'the guard stands down instead of leaving an ingredient unassigned'
+    'a second family contributes rather than leaving an ingredient unassigned'
   );
 });
 
@@ -261,6 +256,7 @@ test('a newly enrolled child joins at the normal pace and does not catch up', ()
     [7.5, 5.0, 3.3, 2.7, 1.5],
   ];
 
+  const priorTargets = {};
   for (let event = 0; event < 30; event++) {
     const eventDate = addWeeks('2026-08-03', event);
     const eventKids = event >= 11 ? allKids : activeKids; // eva joins at 11
@@ -275,6 +271,7 @@ test('a newly enrolled child joins at the normal pace and does not catch up', ()
       })),
       maxPerChild: 1,
       priorTotals: totalsByKid,
+      priorTargets: priorTargets,
       seed: 1000 + event,
     });
 
@@ -297,10 +294,16 @@ test('a newly enrolled child joins at the normal pace and does not catch up', ()
     }
 
     // Update the running totals for the next round.
-    result.forEach((entry, index) => {
-      totalsByKid[entry.childId].totalSpent += eventPrices[index];
+    result.forEach((entry) => {
+      totalsByKid[entry.childId].totalSpent += eventPrices[entry.ingredientIndex];
       totalsByKid[entry.childId].timesAssigned += 1;
     });
+    for (const child of eventKids) {
+      const target = priorTargets[child.id] || (priorTargets[child.id] =
+        { totalSpent: 0, timesAssigned: 0 });
+      target.totalSpent += eventPrices.reduce((s, p) => s + p, 0) / eventKids.length;
+      target.timesAssigned += eventPrices.length / eventKids.length;
+    }
   }
 
   // Final fairness check: difference from target for every child.
@@ -311,12 +314,11 @@ test('a newly enrolled child joins at the normal pace and does not catch up', ()
     totalSpent += totalsByKid[kidInfo.id].totalSpent;
     totalWeeks += Fairness.weeksInKita(kidInfo.enrolledOn, asOfDate);
   }
-  const groupRate = totalSpent / totalWeeks;
   const differences = {};
   for (const kidInfo of allKids) {
     differences[kidInfo.id] =
       totalsByKid[kidInfo.id].totalSpent -
-      groupRate * Fairness.weeksInKita(kidInfo.enrolledOn, asOfDate);
+      priorTargets[kidInfo.id].totalSpent;
   }
 
   // Every child stays close to their fair share - including Eva.
@@ -357,6 +359,7 @@ test('buildOverview: equal-time children split the target in half', () => {
   const state = {
     events: [
       {
+        participantIds: ['k_a', 'k_b'],
         ingredients: [
           { childId: 'k_a', price: 10 },
           { childId: 'k_b', price: 1 },
@@ -418,6 +421,7 @@ test('buildOverview: a child over frequency does not come next up', () => {
   const state = {
     events: [
       {
+        participantIds: ['k_a', 'k_b', 'k_c', 'k_d', 'k_e', 'k_f'],
         ingredients: [
           ...mk('k_a', 9),
           ...mk('k_b', 4),
@@ -441,9 +445,16 @@ test('buildOverview: a child over frequency does not come next up', () => {
   const stats = Fairness.buildOverview(state, '2026-06-15');
 
   assert.notEqual(stats.perKid[0].id, 'k_a', 'Ana takes a break');
-  // All remaining children are tied (equal time, equal frequency);
-  // the stable name tie-break puts 'Ben' first.
-  assert.equal(stats.perKid[0].id, 'k_b');
+  const recommendation = Fairness.assign({
+    activeKids: state.kids,
+    priorTotals: totals({ k_a: [9, 9], k_b: [4, 4], k_c: [4, 4],
+      k_d: [4, 4], k_e: [4, 4], k_f: [4, 4] }),
+    eventDate: '2026-06-15',
+    ingredients: [{ price: 1 }],
+    maxPerChild: 1,
+    seed: 0,
+  });
+  assert.equal(stats.perKid[0].id, recommendation[0].childId);
   // 'Ana' is over frequency AND over target -> last.
   assert.equal(stats.perKid[stats.perKid.length - 1].id, 'k_a');
 });
